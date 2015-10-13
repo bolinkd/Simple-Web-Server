@@ -15,18 +15,30 @@
 #define MAXPATHLEN 256
 #define MAXBUFLEN 256
 #define MAXIPLEN 50
+#define TRUE 1
+#define FALSE 0
 
+/*
+In - String Path/to/file
+Out - int 1 or 0
+returns true of false dependant on whether or not the path is a directory
+*/
 int isDirectory(char *Path){
-  //printf("P: %s\n",Path);
   if(Path[strlen(Path+1)] == '/'){
-    //printf("is directory\n");
-    return 1;
+    //is Directory
+    return TRUE;
   }
-  //printf("is file\n");
-  return 0;
+  //is File
+  return FALSE;
 
 }
 
+
+/*
+In - int month
+Out - String short form of month
+returns a short form of the month string
+*/
 char * getMonth(int month){
   switch(month){
     case(1): return "Jan";
@@ -46,6 +58,10 @@ char * getMonth(int month){
 }
 
 
+/*
+In - Socket, Buffer, Port, ClientIp, Directory Path, Request Number, Client socket, Client socket size
+Completes the request requested by the client and responds
+*/
 void processRequest(int socket_fd, char *buffer, int port, char *clientip, char *directory, int requestno, struct sockaddr_in client, socklen_t len){
   time_t today;
   struct tm *t;
@@ -62,10 +78,10 @@ void processRequest(int socket_fd, char *buffer, int port, char *clientip, char 
   strcpy(copyBuffer, buffer); 
   strcpy(copyDirectory, directory);
 
+  //Parse Request from Client
   char *pch = strtok(buffer," ");
   if(pch != NULL){
     strcpy(Request,pch);
-    //printf("Request: %s\n",Request);
   }else{
     response = 400;
   }
@@ -76,7 +92,6 @@ void processRequest(int socket_fd, char *buffer, int port, char *clientip, char 
   }else{
     response = 400;
   }
-  //printf("FilePath: %s\n",FilePath);
 
   pch = strtok(NULL," ");
   if(pch != NULL){
@@ -84,25 +99,26 @@ void processRequest(int socket_fd, char *buffer, int port, char *clientip, char 
   }else{
     response = 400;
   }
-  //printf("Header: %s\n",Header);
 
   char *month = getMonth(t->tm_mon);  
 
+  //Check Header
   if(strcmp(Header, "HTTP/1.0") != 0){
     response = 400;
   }
 
+  //Check Request
   if(strcmp(Request, "GET") != 0){
     response = 400;
     return;
   }
 
   strcat(copyDirectory, FilePath);
-  //printf("CD: %s\n",copyDirectory);
   if(isDirectory(copyDirectory)){
     strcat(copyDirectory, "index.html");
   }
-  //printf("nCD: %s\n", copyDirectory);
+  
+  //check to see if if exists
   int fp;
   if(response == 200){
     fp = open(copyDirectory, O_RDONLY);
@@ -113,10 +129,12 @@ void processRequest(int socket_fd, char *buffer, int port, char *clientip, char 
     }
   }
   
+  //stop people from checking places they shouldnt be able to
   if(strstr(copyDirectory, "..") != NULL){
     response = 400;
   }
 
+  //set up response
   if(response == 200){
     strcpy(responseLog, "HTTP/1.0 200 OK");
   }else if(response == 400){
@@ -124,7 +142,6 @@ void processRequest(int socket_fd, char *buffer, int port, char *clientip, char 
   }else if(response == 404){
     strcpy(responseLog, "HTTP/1.0 404 Not Found");
   }
-  
   char fileBuffer[MAXBUFLEN] = "";
   char endHeader[3] = "\n\n";
   sendto(socket_fd, &responseLog, strlen(responseLog)+1, 0, (struct sockaddr*)&client, len);
@@ -134,6 +151,7 @@ void processRequest(int socket_fd, char *buffer, int port, char *clientip, char 
     sendto(socket_fd, &fileBuffer, strlen(fileBuffer)+1, 0, (struct sockaddr*)&client, len);
   }
 
+  //Log Request
   printf("%d ", requestno);  
   printf("%d ", 1900+t->tm_year);
   printf("%s ", month); 
@@ -144,6 +162,8 @@ void processRequest(int socket_fd, char *buffer, int port, char *clientip, char 
   fflush(stdout);
 }
 
+
+//Main Function to set up and run control loop
 int main(int argc, char **argv){
   //variables
   struct sockaddr_in server,client;
@@ -217,6 +237,7 @@ int main(int argc, char **argv){
       char clientip[MAXIPLEN] = "";
       socklen_t len = sizeof(client);
       bytes = recvfrom(socket_fd, &buffer, MAXBUFLEN, 0, (struct sockaddr *)&client, &len);
+      printf("Bytes: %d\n",(int)bytes);
       if(bytes < 0){
         //error
         exit(-1);
